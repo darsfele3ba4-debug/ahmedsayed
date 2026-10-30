@@ -111,7 +111,7 @@ function endGame() {
         document.getElementById('endgame-msg').innerText = 'سجّلت ' + toAr(gameState.score) + ' أهداف ⚽ ' + document.getElementById('endgame-msg').innerText;
     }
     document.querySelector('#endgame-modal h2').innerText = (gameState.activeGame === 'millionaire' && gameState.milLost) ? 'انتهت المسابقة!' : 'اكتملت اللعبة!';
-    if (gameState.activeGame === 'millionaire' && gameState.milLost) { if (gameState.score >= 5) SFX.fanfare(); }
+    if (gameState.activeGame === 'millionaire') { if (!gameState.milLost) SFX.milWin(); }
     else (gameState.score / gameState.total >= 0.5) ? SFX.fanfare() : SFX.wrong();
     gameState.result = { game: titles[gameState.activeGame], score: gameState.score, total: gameState.total, msg: document.getElementById('endgame-msg').innerText };
     const nm = document.getElementById('student-name');
@@ -446,6 +446,7 @@ function loadMil() {
     const help = document.getElementById('mil-help'); help.classList.add('hidden'); help.innerHTML = '';
     const qb = document.getElementById('mil-question'); qb.innerHTML = imgHtml(q, 'sm') + '<div>' + fmt(q.q) + '</div>';
     qb.classList.remove('popup-anim'); void qb.offsetWidth; qb.classList.add('popup-anim');
+    SFX.milQuestion();
     const box = document.getElementById('mil-options'); box.innerHTML = '';
     gameState.milOpts = shuffleArray(q.options);
     gameState.milOpts.forEach((opt, i) => {
@@ -458,13 +459,13 @@ function loadMil() {
 }
 function pickMil(sel, q, btn) {
     if (gameState.locked) return; gameState.locked = true;
-    btn.classList.add('final');
+    btn.classList.add('final'); SFX.milSuspense();
     const ok = sel === q.ans;
     setTimeout(() => {
         document.querySelectorAll('.mil-opt').forEach(b => { if (b.dataset.opt === q.ans) b.classList.add('right'); });
         if (!ok) btn.classList.add('wrong');
         btn.classList.remove('final');
-        ok ? SFX.correct(true) : SFX.wrong();
+        ok ? SFX.milRight() : SFX.milWrong();
         if (ok) gameState.score++;
         updateScoreDisplay(); milRenderTop();
         if (!ok) gameState.milLost = true;
@@ -475,7 +476,7 @@ function pickMil(sel, q, btn) {
 }
 function useLifeline(kind) {
     if (gameState.locked || !gameState.ll || !gameState.ll[kind]) return;
-    gameState.ll[kind] = false; milRenderTop(); SFX.small(true);
+    gameState.ll[kind] = false; milRenderTop(); SFX.milLifeline();
     const q = gameState.tempData[gameState.questionIndex];
     const btns = [...document.querySelectorAll('.mil-opt')];
     const visible = btns.filter(b => !b.classList.contains('gone'));
