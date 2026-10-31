@@ -5,6 +5,7 @@
 
 - `index.html` : الصفحة الرئيسية (فتح كل درس أو نسخ رابطه)
 - `game.html?l=1` : الصف الأول الإعدادى — الدرس الأول: تركيب الذرة
+- `game.html?l=7` : الصف الثانى الإعدادى — الدرس الأول: حالات المادة
 - `game.html?l=2` : الصف الثالث الإعدادى — الدرس الأول: أنواع التفاعلات الكيميائية
 - `game.html?l=3` : الصف الأول الثانوى (علوم متكاملة) — الدرس الأول: الغلاف المائى على كوكب الأرض
 - `game.html?l=4` : الصف الأول الثانوى (علوم متكاملة) — الدرس السادس: التكيفات البيولوجية للكائنات الحية فى البيئة المائية
@@ -23,3 +24,4 @@
 - https://darsfele3ba4-debug.github.io/ahmedsayed/game.html?l=4
 - https://darsfele3ba4-debug.github.io/ahmedsayed/game.html?l=5
 - https://darsfele3ba4-debug.github.io/ahmedsayed/game.html?l=6
+- https://darsfele3ba4-debug.github.io/ahmedsayed/game.html?l=7

@@ -65,6 +65,8 @@ function showScreen(screenId) {
 }
 
 // ===== مؤقت 30 ثانية (صح أم خطأ + تسجيل الأهداف) =====
+// صوت المليون الكلاسيكى (نفس أصوات باقى الألعاب) لدروس معينة
+const MIL_CLASSIC = meta.milSound === 'classic';
 const TIMED_GAMES = { tf: 30, goal: 30 };
 function stopTimer() { clearInterval(gameState.tid); gameState.tid = null; }
 function renderTime() {
@@ -135,7 +137,8 @@ function endGame() {
         document.getElementById('endgame-msg').innerText = 'سجّلت ' + toAr(gameState.score) + ' أهداف ⚽ ' + document.getElementById('endgame-msg').innerText;
     }
     document.querySelector('#endgame-modal h2').innerText = (gameState.activeGame === 'millionaire' && gameState.milLost) ? 'انتهت المسابقة!' : 'اكتملت اللعبة!';
-    if (gameState.activeGame === 'millionaire') { if (!gameState.milLost) SFX.milWin(); }
+    if (gameState.activeGame === 'millionaire' && MIL_CLASSIC) { if (!gameState.milLost || gameState.score >= 5) SFX.fanfare(); }
+    else if (gameState.activeGame === 'millionaire') { if (!gameState.milLost) SFX.milWin(); }
     else (gameState.score / gameState.total >= 0.5) ? SFX.fanfare() : SFX.wrong();
     gameState.result = { game: titles[gameState.activeGame], score: gameState.score, total: gameState.total, msg: document.getElementById('endgame-msg').innerText };
     const nm = document.getElementById('student-name');
@@ -487,7 +490,7 @@ function loadMil() {
     document.getElementById('mil-verdict').className = 'mil-verdict';
     const qb = document.getElementById('mil-question'); qb.innerHTML = imgHtml(q, 'sm') + '<div>' + fmt(q.q) + '</div>';
     qb.classList.remove('popup-anim'); void qb.offsetWidth; qb.classList.add('popup-anim');
-    SFX.milQuestion();
+    if (!MIL_CLASSIC) SFX.milQuestion();
     const box = document.getElementById('mil-options'); box.innerHTML = '';
     gameState.milOpts = shuffleArray(q.options);
     gameState.milOpts.forEach((opt, i) => {
@@ -500,13 +503,13 @@ function loadMil() {
 }
 function pickMil(sel, q, btn) {
     if (gameState.locked) return; gameState.locked = true;
-    btn.classList.add('final'); SFX.milSuspense();
+    btn.classList.add('final'); if (!MIL_CLASSIC) SFX.milSuspense();
     const ok = sel === q.ans;
     setTimeout(() => {
         document.querySelectorAll('.mil-opt').forEach(b => { if (b.dataset.opt === q.ans) b.classList.add('right'); });
         if (!ok) btn.classList.add('wrong');
         btn.classList.remove('final');
-        ok ? SFX.milRight() : SFX.milWrong();
+        if (MIL_CLASSIC) ok ? SFX.correct(true) : SFX.wrong(); else ok ? SFX.milRight() : SFX.milWrong();
         const vd = document.getElementById('mil-verdict');
         vd.innerHTML = ok ? '<i class="fa-solid fa-star"></i> أحسنت <i class="fa-solid fa-star"></i>' : 'للأسف غير موفق 😔';
         vd.className = 'mil-verdict show ' + (ok ? 'ok' : 'no');
@@ -520,7 +523,7 @@ function pickMil(sel, q, btn) {
 }
 function useLifeline(kind) {
     if (gameState.locked || !gameState.ll || !gameState.ll[kind]) return;
-    gameState.ll[kind] = false; milRenderTop(); SFX.milLifeline();
+    gameState.ll[kind] = false; milRenderTop(); MIL_CLASSIC ? SFX.small(true) : SFX.milLifeline();
     const q = gameState.tempData[gameState.questionIndex];
     const btns = [...document.querySelectorAll('.mil-opt')];
     const visible = btns.filter(b => !b.classList.contains('gone'));

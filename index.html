@@ -77,7 +77,7 @@
         }
 
         const box = document.getElementById('lessons');
-        const ids = Object.keys(LESSONS);
+        const ids = Object.keys(LESSONS).sort((a, b) => (LESSONS[a].sort || +a) - (LESSONS[b].sort || +b));
         const grades = [...new Set(ids.map(id => LESSONS[id].grade))];
         grades.forEach(g => {
             const cards = ids.filter(id => LESSONS[id].grade === g).map(id => {
