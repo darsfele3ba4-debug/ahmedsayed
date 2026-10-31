@@ -91,18 +91,33 @@ const SFX = (() => {
         [0, 0.32, 0.6, 0.85, 1.07].forEach((d, i) => { boom(c, t + d, 75, 0.22, 0.55); boom(c, t + d + 0.11, 62, 0.2, 0.35); });
         sweep(c, 180, 360, t, 1.25, 'sine', 0.06);
     }
-    function milRight() { // إجابة صحيحة: كورد نحاسى صاعد
+    function loudCrowd(c, t0, dur, vol) {
+        const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+        s.buffer = noiseBuffer(c, dur); f.type = 'bandpass'; f.frequency.setValueAtTime(650, t0); f.frequency.linearRampToValueAtTime(1300, t0 + dur * 0.35); f.Q.value = 0.5;
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.2); g.gain.setValueAtTime(vol, t0 + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        s.connect(f); f.connect(g); g.connect(c.destination); s.start(t0); s.stop(t0 + dur);
+    }
+    function milRight() { // أحسنت: كورد نحاسى + تصفيق وهتاف عالٍ
         if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime + 0.01;
         [[392, 0], [493.88, 0], [587.33, 0], [523.25, 0.22], [659.25, 0.22], [783.99, 0.22], [1046.5, 0.22]].forEach(([f, d]) => {
             tone(c, f, t + d, d ? 0.9 : 0.24, 'sawtooth', 0.07); tone(c, f, t + d, d ? 0.9 : 0.24, 'triangle', 0.14);
         });
-        sweep(c, 600, 2400, t + 0.2, 0.6, 'sine', 0.05);
+        loudCrowd(c, t + 0.15, 2.8, 0.75);
+        claps(c, t + 0.2, 60, 2.4); claps(c, t + 0.3, 40, 2.2);
     }
-    function milWrong() { // إجابة خاطئة: ضربة منخفضة + هبوط درامى
+    function milWrong() { // للأسف غير موفق: ضربة منخفضة + لحن حزين
         if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime + 0.01;
-        boom(c, t, 90, 1.4, 0.6);
-        [[311.13, 0], [293.66, 0.25], [207.65, 0.5]].forEach(([f, d], i) => tone(c, f, t + d, i === 2 ? 1.3 : 0.3, 'sawtooth', 0.09));
-        sweep(c, 400, 80, t + 0.5, 1.2, 'triangle', 0.12);
+        boom(c, t, 90, 1.4, 0.55);
+        wrong();
+    }
+    function tick() { if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime + 0.01; tone(c, 1500, t, 0.06, 'square', 0.12); }
+    function pop() { // انفجار الألعاب النارية
+        if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime + 0.01;
+        const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+        s.buffer = noiseBuffer(c, 0.5); f.type = 'lowpass'; f.frequency.value = 900 + Math.random() * 800;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        s.connect(f); f.connect(g); g.connect(c.destination); s.start(t); s.stop(t + 0.5);
+        claps(c, t + 0.1, 8, 0.4);
     }
     function milLifeline() { // وسيلة مساعدة: صوت انسيابى
         if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime + 0.01;
@@ -115,5 +130,5 @@ const SFX = (() => {
         crowd(c, t + 0.6, 2.6); claps(c, t + 0.7, 40, 2.2);
     }
     function setMuted(m) { muted = m; try { localStorage.setItem('sfx-muted', m ? '1' : '0'); } catch (e) {} }
-    return { correct, wrong, small, fanfare, milQuestion, milSuspense, milRight, milWrong, milLifeline, milWin, setMuted, isMuted: () => muted, unlock: ac };
+    return { correct, wrong, small, fanfare, milQuestion, milSuspense, milRight, milWrong, milLifeline, milWin, tick, pop, setMuted, isMuted: () => muted, unlock: ac };
 })();

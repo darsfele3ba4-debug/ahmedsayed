@@ -64,7 +64,29 @@ function showScreen(screenId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ===== مؤقت 30 ثانية (صح أم خطأ + تسجيل الأهداف) =====
+const TIMED_GAMES = { tf: 30, goal: 30 };
+function stopTimer() { clearInterval(gameState.tid); gameState.tid = null; }
+function renderTime() {
+    const box = document.getElementById('time-box');
+    if (!TIMED_GAMES[gameState.activeGame]) { box.className = 'time-box'; box.innerHTML = '<i class="fa-solid fa-infinity text-blue-500"></i> بدون وقت'; return; }
+    const t = gameState.timeLeft;
+    box.className = 'time-box timed' + (t <= 10 ? ' warn' : '');
+    box.innerHTML = '<i class="fa-solid fa-stopwatch"></i> ' + t + ' ث';
+}
+function startTimer(onTimeout) {
+    stopTimer();
+    const sec = TIMED_GAMES[gameState.activeGame]; if (!sec) return renderTime();
+    gameState.timeLeft = sec; renderTime();
+    gameState.tid = setInterval(() => {
+        gameState.timeLeft--; renderTime();
+        if (gameState.timeLeft > 0 && gameState.timeLeft <= 5) SFX.tick();
+        if (gameState.timeLeft <= 0) { stopTimer(); onTimeout(); }
+    }, 1000);
+}
+
 function goHome() {
+    stopTimer(); stopFireworks();
     pauseAnimations();
     document.getElementById('feedback-modal').classList.add('hidden');
     document.getElementById('endgame-modal').classList.add('hidden');
@@ -75,6 +97,7 @@ function goHome() {
 function startGame(type) {
     if (!D) { alert('جارٍ تحميل الأسئلة... حاول مرة أخرى'); return; }
     document.getElementById('endgame-modal').classList.add('hidden');
+    stopFireworks();
     gameState.activeGame = type; gameState.score = 0; gameState.questionIndex = 0; gameState.subLevel = 0;
     const src = D[type] || [];
     gameState.tempData = type === 'millionaire' ? src.slice() // المليون: الأسئلة متدرجة الصعوبة
@@ -82,7 +105,7 @@ function startGame(type) {
         : shuffleArray(src);
     gameState.total = src.length;
     document.querySelectorAll('.total-count').forEach(e => e.innerText = gameState.total);
-    showScreen(type);
+    showScreen(type); renderTime();
     if (type === 'mcq') loadMCQ();
     else if (type === 'match') loadMatchRound();
     else if (type === 'tf') loadTF();
@@ -98,6 +121,7 @@ function updateScoreDisplay() { document.getElementById('current-score').innerTe
 function setProgress(id) { document.getElementById(id).style.width = `${(gameState.questionIndex / gameState.total) * 100}%`; }
 
 function endGame() {
+    stopTimer();
     document.getElementById('endgame-score').innerText = gameState.score;
     const r = gameState.score / gameState.total;
     document.getElementById('endgame-msg').innerText = r === 1 ? 'بطل حقيقي! درجة نهائية 🌟' : r >= 0.8 ? 'ممتاز! أداء رائع 👏' : r >= 0.5 ? 'جيد، راجع الدرس وحاول مرة أخرى 💪' : 'لا تيأس! راجع الدرس ثم أعد المحاولة 📘';
@@ -118,6 +142,7 @@ function endGame() {
     try { if (!nm.value) nm.value = localStorage.getItem('studentName') || ''; } catch (e) {}
     document.getElementById('name-err').classList.add('hidden');
     document.getElementById('endgame-modal').classList.remove('hidden');
+    if (gameState.score === gameState.total) setTimeout(() => launchFireworks(), 400);
 }
 
 // ---- إرسال النتيجة للمستر على واتساب ----
@@ -144,7 +169,7 @@ function sendResult() {
     window.open('https://wa.me/' + TEACHER.wa + '?text=' + encodeURIComponent(text), '_blank');
 }
 
-function showFeedback(isCorrect, messageHtml, callback) {
+function showFeedback(isCorrect, messageHtml, callback, customTitle) {
     const modal = document.getElementById('feedback-modal'), content = document.getElementById('feedback-content');
     const icon = document.getElementById('feedback-icon'), title = document.getElementById('feedback-title');
     gameState.onFeedbackClose = callback;
@@ -156,6 +181,7 @@ function showFeedback(isCorrect, messageHtml, callback) {
         icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-red-500 popup-anim"></i>';
         title.innerText = "إجابة خاطئة"; title.className = "text-2xl font-bold mb-2 text-red-600";
     }
+    if (customTitle) title.innerText = customTitle;
     document.getElementById('feedback-msg').innerHTML = messageHtml || "";
     modal.classList.remove('hidden');
     setTimeout(() => { content.classList.remove('scale-50', 'opacity-0'); content.classList.add('scale-100', 'opacity-100'); }, 10);
@@ -247,8 +273,14 @@ function loadTF() {
     document.getElementById('tf-img').innerHTML = imgHtml(q);
     const st = document.getElementById('tf-statement'); st.innerHTML = '<span>' + fmt(q.text) + '</span>';
     st.classList.remove('popup-anim'); void st.offsetWidth; st.classList.add('popup-anim');
+    gameState.locked = false;
+    startTimer(() => {
+        if (gameState.locked) return; gameState.locked = true;
+        showFeedback(false, `انتهى الوقت ⏰ العبارة ${q.isCorrect ? "صحيحة" : "خاطئة"}.` + explain(q), () => { gameState.questionIndex++; loadTF(); }, 'انتهى الوقت!');
+    });
 }
 function checkTF(ans) {
+    if (gameState.locked) return; gameState.locked = true; stopTimer();
     const q = gameState.tempData[gameState.questionIndex];
     const ok = q.isCorrect === ans; if (ok) gameState.score++; updateScoreDisplay();
     showFeedback(ok, (ok ? "إجابة صحيحة وممتازة!" : `العبارة ${q.isCorrect ? "صحيحة" : "خاطئة"}.`) + explain(q), () => { gameState.questionIndex++; loadTF(); });
@@ -388,9 +420,17 @@ function loadGoal() {
         t.onclick = () => shootGoal(opt, q, i, t);
         box.appendChild(t);
     });
+    startTimer(() => {
+        if (gameState.locked) return; gameState.locked = true;
+        const f = document.getElementById('goal-flash');
+        f.innerText = 'انتهى الوقت! ⏰'; f.className = 'goal-flash show no'; SFX.wrong();
+        const myIdx = gameState.questionIndex;
+        setTimeout(() => gameState.activeGame === 'goal' && gameState.questionIndex === myIdx && showFeedback(false, `انتهى الوقت ⏰ الإجابة الصحيحة: ${fmt(q.ans)}` + explain(q),
+            () => { gameState.questionIndex++; loadGoal(); }, 'انتهى الوقت!'), 900);
+    });
 }
 function shootGoal(sel, q, idx, target) {
-    if (gameState.locked) return; gameState.locked = true;
+    if (gameState.locked) return; gameState.locked = true; stopTimer();
     const ok = sel === q.ans;
     const ball = document.getElementById('goal-ball'), keeper = document.getElementById('goal-keeper');
     const others = [0, 1, 2, 3].filter(k => k !== idx);
@@ -444,6 +484,7 @@ function loadMil() {
     const q = gameState.tempData[gameState.questionIndex];
     milRenderTop();
     const help = document.getElementById('mil-help'); help.classList.add('hidden'); help.innerHTML = '';
+    document.getElementById('mil-verdict').className = 'mil-verdict';
     const qb = document.getElementById('mil-question'); qb.innerHTML = imgHtml(q, 'sm') + '<div>' + fmt(q.q) + '</div>';
     qb.classList.remove('popup-anim'); void qb.offsetWidth; qb.classList.add('popup-anim');
     SFX.milQuestion();
@@ -466,12 +507,15 @@ function pickMil(sel, q, btn) {
         if (!ok) btn.classList.add('wrong');
         btn.classList.remove('final');
         ok ? SFX.milRight() : SFX.milWrong();
+        const vd = document.getElementById('mil-verdict');
+        vd.innerHTML = ok ? '<i class="fa-solid fa-star"></i> أحسنت <i class="fa-solid fa-star"></i>' : 'للأسف غير موفق 😔';
+        vd.className = 'mil-verdict show ' + (ok ? 'ok' : 'no');
         if (ok) gameState.score++;
         updateScoreDisplay(); milRenderTop();
         if (!ok) gameState.milLost = true;
         setTimeout(() => showFeedback(ok, (ok ? `إجابة نهائية صحيحة! رصيدك الآن ${milFmt(milPrize())} نقطة 💰`
                 : `الإجابة الصحيحة: ${fmt(q.ans)}` + explain(q) + `<br><b class="text-red-600">انتهت المسابقة .. رصيدك النهائي ${milFmt(milPrize())} نقطة</b>`) + (ok ? explain(q) : ''),
-            () => { if (!ok) return endGame(); gameState.questionIndex++; loadMil(); }), 1100);
+            () => { if (!ok) return endGame(); gameState.questionIndex++; loadMil(); }, ok ? 'أحسنت 👏' : 'للأسف غير موفق'), 1700);
     }, 1300);
 }
 function useLifeline(kind) {
@@ -502,4 +546,38 @@ function useLifeline(kind) {
         }).join('') + '</div>';
     }
     help.classList.remove('hidden');
+}
+
+
+// ===== ألعاب نارية عند الدرجة النهائية أو الفوز بالمليون =====
+let FW = null;
+function stopFireworks() { if (FW) { cancelAnimationFrame(FW.raf); clearTimeout(FW.end); FW.cv.remove(); FW = null; } }
+function launchFireworks(ms) {
+    stopFireworks();
+    const cv = document.createElement('canvas'); cv.className = 'fireworks-canvas'; document.body.appendChild(cv);
+    const cx = cv.getContext('2d'); let W, H;
+    const fit = () => { W = cv.width = innerWidth; H = cv.height = innerHeight; }; fit();
+    const colors = ['#facc15', '#f97316', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff'];
+    const rockets = [], sparks = []; let last = 0, t0 = performance.now(), stopAt = t0 + (ms || 6000);
+    function rocket() { rockets.push({ x: W * (0.15 + Math.random() * 0.7), y: H, vx: (Math.random() - 0.5) * 2, vy: -(H / 75 + Math.random() * 4), ty: H * (0.15 + Math.random() * 0.3), c: colors[Math.random() * colors.length | 0] }); }
+    function burst(r) {
+        const n = 70 + Math.random() * 40 | 0, c2 = colors[Math.random() * colors.length | 0];
+        for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n, v = 2 + Math.random() * 4.5; sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, c: i % 3 ? r.c : c2 }); }
+        SFX.pop();
+    }
+    function frame(now) {
+        if (now < stopAt && now - last > 380) { rocket(); if (Math.random() < 0.5) rocket(); last = now; }
+        cx.globalCompositeOperation = 'destination-out'; cx.fillStyle = 'rgba(0,0,0,0.25)'; cx.fillRect(0, 0, W, H);
+        cx.globalCompositeOperation = 'lighter';
+        for (let i = rockets.length - 1; i >= 0; i--) { const r = rockets[i]; r.x += r.vx; r.y += r.vy; r.vy += 0.08;
+            cx.fillStyle = r.c; cx.beginPath(); cx.arc(r.x, r.y, 2.6, 0, 7); cx.fill();
+            if (r.y <= r.ty || r.vy >= 0) { burst(r); rockets.splice(i, 1); } }
+        for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.vx *= 0.985; p.vy *= 0.985; p.life -= 0.012;
+            if (p.life <= 0) { sparks.splice(i, 1); continue; }
+            cx.globalAlpha = p.life; cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, 2.2, 0, 7); cx.fill(); cx.globalAlpha = 1; }
+        if (now > stopAt && !rockets.length && !sparks.length) return stopFireworks();
+        FW.raf = requestAnimationFrame(frame);
+    }
+    FW = { cv, raf: requestAnimationFrame(frame), end: setTimeout(() => {}, 0) };
+    addEventListener('resize', fit);
 }
